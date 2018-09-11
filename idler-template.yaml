@@ -1,0 +1,55 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: idler
+  annotations:
+    "openshift.io/display-name": IDLER
+    description: |
+      OpenFaaS FaaS Idler template.
+    iconClass: icon-cogs
+    tags: "serverless,openfaas"
+parameters:
+- description: The namespace to create open faas control plane.
+  name: CP_NAMESPACE
+  required: true
+- description: The location of the faas idler image
+  name: IMAGE_IDLER
+  value: openfaas/faas-idler:0.1.7
+objects:
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: faas-idler
+    name: faas-idler
+    namespace: "${CP_NAMESPACE}"
+  spec:
+    replicas: 1
+    strategy:
+      type: Rolling
+    selector:
+      app: faas-idler
+    template:
+      metadata:
+        labels:
+          app: faas-idler
+        name: faas-idler
+      spec:
+        serviceAccountName: faas-controller
+        containers:
+        - name: faas-idler
+          command: ["/home/app/faas-idler","-dry-run=false"]
+          image: ${IMAGE_IDLER}
+          imagePullPolicy: IfNotPresent
+          env:
+          - name: gateway_url
+            value: "http://gateway:8080/"
+          - name: prometheus_host
+            value: "prometheus"
+          - name: prometheus_port
+            value: "9090"
+          - name: inactivity_duration
+            value: "5m"
+          - name: reconcile_interval
+            value: "30s"
+        restartPolicy: Always

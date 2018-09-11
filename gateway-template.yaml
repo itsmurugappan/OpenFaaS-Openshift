@@ -1,0 +1,130 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: gateway
+  annotations:
+    "openshift.io/display-name": Gateway
+    description: |
+      OpenFaaS Gateway template.
+    iconClass: icon-cogs
+    tags: "serverless,openfaas"
+parameters:
+- description: The namespace to create open faas control plane.
+  name: CP_NAMESPACE
+  required: true
+- description: The namespace to create functions.
+  name: FN_NAMESPACE
+  required: true
+- description: The location of the gateway image
+  name: IMAGE_GATEWAY
+  value: openfaas/gateway:0.9.0
+objects:
+# Authorize the faas controller service account to read data about the cluster
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: faas-controller
+    namespace: "${CP_NAMESPACE}"
+- apiVersion: authorization.openshift.io/v1
+  kind: RoleBinding
+  metadata:
+    name: faas-admin
+  roleRef:
+    name: admin
+  subjects:
+  - kind: ServiceAccount
+    name: faas-controller
+    namespace: "${CP_NAMESPACE}"
+- apiVersion: authorization.openshift.io/v1
+  kind: RoleBinding
+  metadata:
+    name: faas-fn-admin
+  roleRef:
+    name: admin
+  subjects:
+  - kind: ServiceAccount
+    name: faas-controller
+    namespace: "${FN_NAMESPACE}"
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: gateway
+    labels:
+      app: gateway
+    namespace: "${CP_NAMESPACE}"
+  spec:
+    to:
+      name: gateway
+    port:
+      targetPort: gateway-http
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+    labels:
+      app: gateway
+      name: gateway
+    name: gateway
+    namespace: "${CP_NAMESPACE}"
+  spec:
+    ports:
+    - name: gateway-http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app: gateway
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: gateway
+    name: gateway
+    namespace: "${CP_NAMESPACE}"
+  spec:
+    replicas: 1
+    strategy:
+      type: Rolling
+    selector:
+      app: gateway
+    template:
+      metadata:
+        labels:
+          app: gateway
+        name: gateway
+      spec:
+        serviceAccountName: faas-controller
+        containers:
+        - name: gateway
+          ports:
+          - containerPort: 8080
+            name: gateway
+          image: ${IMAGE_GATEWAY}
+          env:
+          - name: functions_provider_url
+            value: "http://faas-netesd:8080/"
+          - name: faas_nats_address
+            value: "nats"
+          - name: faas_nats_port
+            value: "4222"
+          - name: read_timeout
+            value: "120s"
+          - name: write_timeout
+            value: "120s"
+          - name: upstream_timeout
+            value: "115s"
+          - name: basic_auth
+            value: "false"
+          - name: direct_functions_suffix
+            value: "${FN_NAMESPACE}.svc.cluster.local."
+          - name: direct_functions
+            value: "true"
+          - name: scale_from_zero
+            value: "true"
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              path: "/healthz"
+              port: 8080
+              scheme": "HTTP"
+        restartPolicy: Always

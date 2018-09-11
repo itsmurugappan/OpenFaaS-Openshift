@@ -1,0 +1,111 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: nats
+  annotations:
+    "openshift.io/display-name": NATS
+    description: |
+      OpenFaaS NATS template and queue worker.
+    iconClass: icon-cogs
+    tags: "serverless,openfaas"
+parameters:
+- description: The namespace to create open faas control plane.
+  name: CP_NAMESPACE
+  required: true
+- description: The location of the gateway image
+  name: IMAGE_NATS
+  value: nats-streaming:0.6.0
+- description: The location of the queue worker image
+  name: IMAGE_QW
+  value: openfaas/queue-worker:0.4.9
+- description: The namespace to create functions.
+  name: FN_NAMESPACE
+  required: true
+objects:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+    labels:
+      app: nats
+      name: nats
+    name: nats
+    namespace: "${CP_NAMESPACE}"
+  spec:
+    ports:
+    - name: nats
+      port: 4222
+      protocol: TCP
+      targetPort: 4222
+    selector:
+      app: nats
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: nats
+    name: nats
+    namespace: "${CP_NAMESPACE}"
+  spec:
+    replicas: 1
+    strategy:
+      type: Rolling
+    selector:
+      app: nats
+    template:
+      metadata:
+        labels:
+          app: nats
+        name: nats
+      spec:
+        serviceAccountName: faas-controller
+        containers:
+        - name: nats
+          ports:
+          - containerPort: 4222
+            protocol: TCP
+            name: nats
+          - containerPort: 8222
+            protocol: TCP
+            name: nats-tcp
+          command: ["/nats-streaming-server"]
+          args:
+            - --store
+            - memory
+            - --cluster_id
+            - faas-cluster
+          image: ${IMAGE_NATS}
+          imagePullPolicy: IfNotPresent
+        restartPolicy: Always
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: queue-worker
+    name: queue-worker
+    namespace: "${CP_NAMESPACE}"
+  spec:
+    replicas: 1
+    strategy:
+      type: Rolling
+    selector:
+      app: queue-worker
+    template:
+      metadata:
+        labels:
+          app: queue-worker
+        name: queue-worker
+      spec:
+        serviceAccountName: faas-controller
+        containers:
+        - name: queue-worker
+          env:
+          - name: max_inflight
+            value: "1"
+          - name: ack_wait    # Max duration of any async task / request
+            value: "30s"
+          - name: faas_function_suffix
+            value: ".${FN_NAMESPACE}.svc.cluster.local."
+          image: ${IMAGE_QW}
+          imagePullPolicy: IfNotPresent
+        restartPolicy: Always

@@ -1,0 +1,73 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: faas-netesd
+  annotations:
+    "openshift.io/display-name": FaasNetesd
+    description: |
+      OpenFaaS Faas Netesd template.
+    iconClass: icon-cogs
+    tags: "serverless,openfaas"
+parameters:
+- description: The namespace to create open faas control plane.
+  name: CP_NAMESPACE
+  required: true
+- description: The namespace to create functions.
+  name: FN_NAMESPACE
+  required: true
+- description: The location of the gateway image
+  name: IMAGE_NETESD
+  value: openfaas/faas-netes:0.6.0
+objects:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+    labels:
+      app: faas-netesd
+      name: faas-netesd
+    name: faas-netesd
+    namespace: "${CP_NAMESPACE}"
+  spec:
+    ports:
+    - name: netesd-http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app: faas-netesd
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: faas-netesd
+    name: faas-netesd
+    namespace: "${CP_NAMESPACE}"
+  spec:
+    replicas: 1
+    strategy:
+      type: Rolling
+    selector:
+      app: faas-netesd
+    template:
+      metadata:
+        labels:
+          app: faas-netesd
+        name: faas-netesd
+      spec:
+        serviceAccountName: faas-controller
+        containers:
+        - name: faas-netesd
+          ports:
+          - containerPort: 8080
+            name: netesd-http
+          image: ${IMAGE_NETESD}
+          env:
+          - name: function_namespace
+            value: "${FN_NAMESPACE}"
+          - name: read_timeout
+            value: "10"
+          - name: write_timeout
+            value: "10"
+          imagePullPolicy: IfNotPresent
+        restartPolicy: Always
