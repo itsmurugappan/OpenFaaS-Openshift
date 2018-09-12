@@ -23,6 +23,31 @@ parameters:
   required: true
 objects:
 - apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: faas-controller
+    namespace: "${CP_NAMESPACE}"
+- apiVersion: authorization.openshift.io/v1
+  kind: RoleBinding
+  metadata:
+    name: faas-admin
+  roleRef:
+    name: admin
+  subjects:
+  - kind: ServiceAccount
+    name: faas-controller
+    namespace: "${CP_NAMESPACE}"
+- apiVersion: authorization.openshift.io/v1
+  kind: RoleBinding
+  metadata:
+    name: faas-fn-admin
+  roleRef:
+    name: admin
+  subjects:
+  - kind: ServiceAccount
+    name: faas-controller
+    namespace: "${FN_NAMESPACE}"
+- apiVersion: v1
   kind: Service
   metadata:
     annotations:

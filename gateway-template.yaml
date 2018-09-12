@@ -19,32 +19,6 @@ parameters:
   name: IMAGE_GATEWAY
   value: openfaas/gateway:0.9.0
 objects:
-# Authorize the faas controller service account to read data about the cluster
-- apiVersion: v1
-  kind: ServiceAccount
-  metadata:
-    name: faas-controller
-    namespace: "${CP_NAMESPACE}"
-- apiVersion: authorization.openshift.io/v1
-  kind: RoleBinding
-  metadata:
-    name: faas-admin
-  roleRef:
-    name: admin
-  subjects:
-  - kind: ServiceAccount
-    name: faas-controller
-    namespace: "${CP_NAMESPACE}"
-- apiVersion: authorization.openshift.io/v1
-  kind: RoleBinding
-  metadata:
-    name: faas-fn-admin
-  roleRef:
-    name: admin
-  subjects:
-  - kind: ServiceAccount
-    name: faas-controller
-    namespace: "${FN_NAMESPACE}"
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
